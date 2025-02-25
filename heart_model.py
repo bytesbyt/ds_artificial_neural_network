@@ -3,18 +3,44 @@ import numpy as np
 import tensorflow as tf
 import pickle
 import pandas as pd
-import keras
+import os
+from tensorflow import keras
 
 
+# Set page configuration - this changes the browser tab title
+st.set_page_config(
+    page_title="Heart Disease Model",
+    page_icon="❤️",
+    layout="wide"
+)
 
-# Load the saved svm model
-model = pickle.load(open('svm.pkl', 'rb')) 
+# Set environment variables to disable GPU
+## '3' means "only show errors" (suppress info, warnings, and debug messages)
+## This disables GPU usage for TensorFlow
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress TensorFlow logging
 
-## load the neural network model
-##model = keras.models.load_model('heart_disease.h5')
+# Clear any existing TensorFlow session
+## Releases memory used by TensorFlow
+## Clears any stored states or cached operations
+tf.keras.backend.clear_session()
 
-# Load the saved scaler (StandardScaler)
-scaler = pickle.load(open('scaler.pkl', 'rb'))  
+# Load the neural network model
+## By loading the model once and reusing it, you avoid having multiple copies of the same model in memory.
+@st.cache_resource
+def load_model():
+    # Clear session again right before loading
+    tf.keras.backend.clear_session()
+    return keras.models.load_model('heart_disease.keras', compile=False)
+
+# Load the scaler
+@st.cache_resource
+def load_scaler():
+    return pickle.load(open('scaler.pkl', 'rb'))
+
+# Load models and scaler
+model = load_model()
+scaler = load_scaler()
 
 # Function to make predictions
 def make_prediction(input_data):
@@ -28,13 +54,13 @@ def make_prediction(input_data):
     # Output the user's input 
     st.write("### User Input:")
 
-     # Display the input as a DataFrame
+    # Display the input as a DataFrame
     st.dataframe(input_df) 
     
-    # Apply the scaling transformation using the loaded scaler
-    scaled_data = scaler.transform(input_df)  
+    # Apply the scaling transformation
+    scaled_data = scaler.transform(input_df)
     
-    # Make the prediction using saved the neural network model
+    # Make the prediction
     prediction = model.predict(scaled_data)
     
     return prediction
@@ -43,7 +69,7 @@ def make_prediction(input_data):
 st.title('Heart Disease Prediction')
 
 # Display an image
-st.image('heart.png', use_column_width=True)
+st.image('heart.png', use_container_width=True)
 
 st.write(""" 
 Please fill in the information below, and we'll predict if you might be at risk for heart disease based on the data you provide.  
@@ -137,12 +163,12 @@ input_data = [
 
 # Button to trigger prediction
 if st.button('Predict'):
+    # Make prediction
     prediction = make_prediction(input_data)
-   
+
     
     # Setting threshold for probability output
-    # if the prediction is > 0.5, classify as risk
-    if prediction[0] > 0.5:
+    if prediction > 0.5:
         st.write("The model predicts: **Heart Disease Risk**")
         st.write("It's recommended to consult with a healthcare professional for further assessment.")
     else:
